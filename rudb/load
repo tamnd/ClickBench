@@ -1,0 +1,23 @@
+#!/bin/bash
+set -e
+
+# Idempotent: remove any prior database and an interrupted writer's temporary file.
+rm -f hits.db
+find . -maxdepth 1 -type f -name 'hits.*.tmp' -delete
+
+# Build RuDB's native single-file database from the same schema and source used
+# by the DuckDB entry. The first insert into a file-backed empty table streams
+# directly into native columnar storage.
+rudb hits.db <<'SQL'
+.read create.sql
+INSERT INTO hits
+SELECT * REPLACE (
+    make_date(EventDate) AS EventDate,
+    epoch_ms(EventTime * 1000) AS EventTime,
+    epoch_ms(ClientEventTime * 1000) AS ClientEventTime,
+    epoch_ms(LocalEventTime * 1000) AS LocalEventTime)
+FROM read_parquet('hits.parquet', binary_as_string=True);
+SQL
+
+rm -f hits.parquet
+sync

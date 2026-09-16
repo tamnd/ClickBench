@@ -1,0 +1,26 @@
+#!/bin/bash
+# Reads a SQL query from stdin, runs it via rudb against hits.db.
+# Stdout: query result (boxed format).
+# Stderr: query runtime in fractional seconds on the last line.
+# Exit non-zero on error.
+set -euo pipefail
+
+query=$(cat)
+result=$(mktemp)
+error=$(mktemp)
+trap 'rm -f "$result" "$error"' EXIT
+
+# RuDB deliberately follows DuckDB's CLI, except its timer belongs on stderr.
+if rudb hits.db -c ".timer on" -c "$query" >"$result" 2>"$error"; then
+    status=0
+else
+    status=$?
+fi
+
+if [ "$status" -ne 0 ]; then
+    cat "$error" >&2
+    exit "$status"
+fi
+
+cat "$result"
+awk '/^Run Time/ { print $5 }' "$error" | tail -n1 >&2

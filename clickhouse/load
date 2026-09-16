@@ -12,9 +12,13 @@ clickhouse-client < create.sql
 for f in hits_*.parquet; do
     sudo ln -sf "$PWD/$f" /var/lib/clickhouse/user_files/"$f"
 done
-sudo chown -h clickhouse:clickhouse /var/lib/clickhouse/user_files/hits_*.parquet
+# Expand the glob inside the privileged process. A non-root benchmark user cannot traverse the
+# default mode-700 /var/lib/clickhouse directory, so its shell otherwise passes the literal glob
+# to sudo even though the symlinks were created successfully above.
+sudo find /var/lib/clickhouse/user_files -maxdepth 1 -name 'hits_*.parquet' \
+    -exec chown -h clickhouse:clickhouse {} +
 
 clickhouse-client --query "INSERT INTO hits SELECT * FROM file('hits_*.parquet')" --max-insert-threads "$(( $(nproc) / 4 ))"
 
-sudo rm -f /var/lib/clickhouse/user_files/hits_*.parquet
+sudo find /var/lib/clickhouse/user_files -maxdepth 1 -name 'hits_*.parquet' -delete
 sync

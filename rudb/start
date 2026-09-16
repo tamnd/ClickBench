@@ -1,0 +1,3 @@
+#!/bin/bash
+# RuDB is embedded, so there is no daemon to start.
+exit 0

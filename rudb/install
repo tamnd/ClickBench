@@ -1,0 +1,33 @@
+#!/bin/bash
+set -euo pipefail
+
+version=v0.3.22
+archive="rudb-${version}.tar.gz"
+source_url="https://github.com/tamnd/rudb/archive/refs/tags/${version}.tar.gz"
+source_sha256=3a4576605ee5350c5bc7f6792e72e16e35ddccdb03192366a34e4ea4da8bdd45
+
+if command -v rudb >/dev/null 2>&1 && rudb --version | grep -qx "rudb ${version#v}"; then
+    exit 0
+fi
+
+sudo apt-get update
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    build-essential ca-certificates curl
+
+if ! command -v rustup >/dev/null 2>&1; then
+    curl --proto '=https' --tlsv1.2 --silent --show-error --fail \
+        https://sh.rustup.rs | sh -s -- -y --profile minimal
+fi
+if [ -f "$HOME/.cargo/env" ]; then
+    # shellcheck source=/dev/null
+    . "$HOME/.cargo/env"
+fi
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+curl --location --fail --retry 3 --output "$work/$archive" "$source_url"
+printf '%s  %s\n' "$source_sha256" "$work/$archive" | sha256sum --check
+tar -xzf "$work/$archive" -C "$work"
+cargo build --release --locked --bin rudb \
+    --manifest-path "$work/rudb-${version#v}/Cargo.toml"
+sudo install -m 0755 "$work/rudb-${version#v}/target/release/rudb" /usr/local/bin/rudb

@@ -243,6 +243,17 @@ bench_load() {
         return 1
     fi
 
+    # The size floor below reads "smaller than the real dataset" as "the load
+    # was cut short", which is sound when the driver fetched the dataset itself
+    # and is exactly backwards once BENCH_SKIP_DOWNLOAD says it did not. Under
+    # that knob a small database is the thing that was asked for. The ./check
+    # above still runs, because a load that crashed is worth catching whatever
+    # the operator pointed the driver at, and it is the half of this guard that
+    # does not depend on knowing how big the data should be.
+    if [ "$BENCH_SKIP_DOWNLOAD" = "yes" ]; then
+        return 0
+    fi
+
     local size
     size=$(./data-size 2>/dev/null || echo 0)
     if ! [[ "$size" =~ ^[0-9]+$ ]] || [ "$size" -lt 5000000000 ]; then

@@ -47,6 +47,26 @@
 #                                  rather than a warm query against a
 #                                  freshly-loaded RAM dataset.
 #   BENCH_TRIES            Number of times each query is run. Default 3.
+#   BENCH_SKIP_DOWNLOAD    "yes" leaves the dataset alone and runs against
+#                          whatever the operator already put in the system
+#                          directory. Default "no".
+#                          This is for bringing an entry up, not for scoring
+#                          it. A ClickBench number is defined over the
+#                          99,997,497-row hits file, so a run over anything
+#                          else is a development run whatever it prints, and
+#                          the reason to have the knob at all is that the
+#                          alternative is a 14 GB download and a load in the
+#                          tens of minutes between you and finding out that
+#                          ./query has a typo in it. The download is wget
+#                          --continue, so the seemingly obvious trick of
+#                          dropping a small hits.parquet in place does not
+#                          work: wget treats it as a partial transfer and
+#                          appends the rest of the real file to it.
+#                          Keep your copy somewhere else and copy it in
+#                          before each run. The load scripts delete the
+#                          source once it is loaded, which is right when the
+#                          driver can download it again and means a second
+#                          run under this knob otherwise starts by failing.
 #   BENCH_QUERIES_FILE     Path to a queries file, one query per line.
 #                          Default "queries.sql" (in the system dir).
 #   BENCH_CHECK_TIMEOUT    Seconds to wait for ./check to succeed. Default 300.
@@ -86,6 +106,7 @@ export HOME="${HOME:-/root}"
 : "${BENCH_RESTARTABLE:=yes}"
 : "${BENCH_DURABLE:=yes}"
 : "${BENCH_TRIES:=3}"
+: "${BENCH_SKIP_DOWNLOAD:=no}"
 : "${BENCH_QUERIES_FILE:=queries.sql}"
 : "${BENCH_CHECK_TIMEOUT:=300}"
 : "${BENCH_CONCURRENT_CONNECTIONS:=10}"
@@ -166,7 +187,7 @@ bench_stop() {
 }
 
 bench_download() {
-    if [ -z "$BENCH_DOWNLOAD_SCRIPT" ]; then
+    if [ -z "$BENCH_DOWNLOAD_SCRIPT" ] || [ "$BENCH_SKIP_DOWNLOAD" = "yes" ]; then
         return 0
     fi
     "$LIB_DIR/$BENCH_DOWNLOAD_SCRIPT"
@@ -220,6 +241,17 @@ bench_load() {
     if ! ./check >/dev/null 2>&1; then
         echo "bench: ./check failed after ./load — server crashed mid-load?" >&2
         return 1
+    fi
+
+    # The size floor below reads "smaller than the real dataset" as "the load
+    # was cut short", which is sound when the driver fetched the dataset itself
+    # and is exactly backwards once BENCH_SKIP_DOWNLOAD says it did not. Under
+    # that knob a small database is the thing that was asked for. The ./check
+    # above still runs, because a load that crashed is worth catching whatever
+    # the operator pointed the driver at, and it is the half of this guard that
+    # does not depend on knowing how big the data should be.
+    if [ "$BENCH_SKIP_DOWNLOAD" = "yes" ]; then
+        return 0
     fi
 
     local size

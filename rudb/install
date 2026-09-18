@@ -1,10 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-version=v0.3.22
+version=v0.3.31
 archive="rudb-${version}.tar.gz"
 source_url="https://github.com/tamnd/rudb/archive/refs/tags/${version}.tar.gz"
-source_sha256=3a4576605ee5350c5bc7f6792e72e16e35ddccdb03192366a34e4ea4da8bdd45
+source_sha256=cee6bb1f920f1ad8bb9f3eaffd763eb3f74970ec9ef8f7b6343d42d9675338f9
 
 if command -v rudb >/dev/null 2>&1 && rudb --version | grep -qx "rudb ${version#v}"; then
     exit 0
